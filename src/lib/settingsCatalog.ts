@@ -195,6 +195,7 @@ function groupColl(
 function appEntryChildren(
   serviceId: string,
   bundleId: string,
+  identifierType: 'bundleID' | 'path',
   codeRequirement: string,
   authorization: Authorization,
   receiver?: AppleEventReceiver,
@@ -220,7 +221,7 @@ function appEntryChildren(
     choice(`${prefix}_authorization`, AUTH_SUFFIX[authorization]),
     simple(`${prefix}_coderequirement`, codeRequirement),
     simple(`${prefix}_identifier`, bundleId),
-    choice(`${prefix}_identifiertype`, IDENTIFIER_TYPE_SUFFIX.bundleID),
+    choice(`${prefix}_identifiertype`, IDENTIFIER_TYPE_SUFFIX[identifierType]),
   );
 
   return children;
@@ -228,6 +229,7 @@ function appEntryChildren(
 
 interface ServiceAppRow {
   bundleId: string;
+  identifierType: 'bundleID' | 'path';
   codeRequirement: string;
   authorization: Authorization;
   receiver?: AppleEventReceiver;
@@ -262,6 +264,7 @@ export function buildSettingsCatalogPolicy(
         for (const r of receivers) {
           list.push({
             bundleId: item.app.bundleId,
+            identifierType: item.app.identifierType,
             codeRequirement: codeReq,
             authorization: r.authorization,
             receiver: r,
@@ -274,6 +277,7 @@ export function buildSettingsCatalogPolicy(
       const list = rowsByService.get(perm.tccService) ?? [];
       list.push({
         bundleId: item.app.bundleId,
+        identifierType: item.app.identifierType,
         codeRequirement: codeReq,
         authorization: effectiveAuthorization(perm.authMode, state.authorization),
       });
@@ -294,6 +298,7 @@ export function buildSettingsCatalogPolicy(
             appEntryChildren(
               serviceId,
               row.bundleId,
+              row.identifierType,
               row.codeRequirement,
               row.authorization,
               row.receiver,
