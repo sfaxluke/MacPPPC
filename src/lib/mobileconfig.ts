@@ -13,6 +13,7 @@ import type {
 interface StandardEntry {
   kind: 'standard';
   bundleId: string;
+  identifierType: 'bundleID' | 'path';
   codeRequirement: string | null;
   authorization: Authorization;
   authMode: AuthMode;
@@ -21,6 +22,7 @@ interface StandardEntry {
 interface AppleEventsEntry {
   kind: 'appleEvents';
   bundleId: string;
+  identifierType: 'bundleID' | 'path';
   codeRequirement: string | null;
   receivers: AppleEventReceiver[];
 }
@@ -67,6 +69,7 @@ function buildServicesDict(selectedApps: SelectedApp[]): string | null {
         serviceGroups[service].push({
           kind: 'appleEvents',
           bundleId: item.app.bundleId,
+          identifierType: item.app.identifierType,
           codeRequirement: item.app.codeRequirement,
           receivers,
         });
@@ -77,6 +80,7 @@ function buildServicesDict(selectedApps: SelectedApp[]): string | null {
       serviceGroups[service].push({
         kind: 'standard',
         bundleId: item.app.bundleId,
+        identifierType: item.app.identifierType,
         codeRequirement: item.app.codeRequirement,
         authorization: state.authorization,
         authMode: perm.authMode,
@@ -104,7 +108,7 @@ function buildServicesDict(selectedApps: SelectedApp[]): string | null {
                         <key>Identifier</key>
                         <string>${escapeXml(entry.bundleId)}</string>
                         <key>IdentifierType</key>
-                        <string>bundleID</string>
+                        <string>${entry.identifierType}</string>
                     </dict>`,
             ];
           }
@@ -130,7 +134,7 @@ function buildServicesDict(selectedApps: SelectedApp[]): string | null {
                         <key>Identifier</key>
                         <string>${escapeXml(entry.bundleId)}</string>
                         <key>IdentifierType</key>
-                        <string>bundleID</string>
+                        <string>${entry.identifierType}</string>
                     </dict>`;
           });
         })
