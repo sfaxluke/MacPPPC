@@ -3,12 +3,21 @@ import { importMobileconfig } from './mobileconfigImport';
 import { defaultCodeRequirement } from './codeRequirement';
 import type { KnownApp } from './types';
 
-function entryDict(fields: Record<string, string>): string {
+type XmlFieldValue = string | { bool: boolean } | { int: number };
+
+function entryDict(fields: Record<string, XmlFieldValue>): string {
   const kv = Object.entries(fields)
-    .map(
-      ([k, v]) =>
-        `                        <key>${k}</key>\n                        <string>${v}</string>`,
-    )
+    .map(([k, v]) => {
+      const valueXml =
+        typeof v === 'string'
+          ? `<string>${v}</string>`
+          : 'bool' in v
+            ? v.bool
+              ? '<true/>'
+              : '<false/>'
+            : `<integer>${v.int}</integer>`;
+      return `                        <key>${k}</key>\n                        ${valueXml}`;
+    })
     .join('\n');
   return `                    <dict>\n${kv}\n                    </dict>`;
 }
@@ -233,6 +242,20 @@ describe('importMobileconfig', () => {
     );
   });
 
+  it('includes the collected warnings in the thrown message when nothing is importable', () => {
+    const xml = profileXml(
+      serviceArray('SystemPolicyAllFiles', [
+        entryDict({
+          Identifier: '/Applications/Foo.app/Contents/MacOS/foo',
+          IdentifierType: 'path',
+          Allowed: { bool: true },
+        }),
+      ]),
+    );
+
+    expect(() => importMobileconfig(xml, [], 1)).toThrow(/path identifier/);
+  });
+
   it('throws when the only entry has a CodeRequirement but is otherwise unusable', () => {
     const xml = profileXml(
       serviceArray('Camera', [
@@ -247,6 +270,80 @@ describe('importMobileconfig', () => {
 
     expect(() => importMobileconfig(xml, [], 1)).toThrow(
       'This profile has no importable PPPC entries.',
+    );
+  });
+
+  it('treats a boolean Allowed:true field as equivalent to Authorization: Allow', () => {
+    // Real-world shape used by Microsoft Defender, SentinelOne, Huntress, and
+    // JAMF-authored profiles — Apple's PPPC schema allows a boolean `Allowed`
+    // field as an alternative to the `Authorization` string enum.
+    const xml = profileXml(
+      serviceArray('SystemPolicyAllFiles', [
+        entryDict({
+          Identifier: 'com.example.app',
+          IdentifierType: 'bundleID',
+          Allowed: { bool: true },
+          CodeRequirement: defaultCodeRequirement('com.example.app'),
+        }),
+      ]),
+    );
+
+    const result = importMobileconfig(xml, [], 1);
+    expect(result.warnings).toEqual([]);
+    expect(result.apps).toHaveLength(1);
+    expect(result.apps[0].permissions.fullDiskAccess.enabled).toBe(true);
+    expect(result.apps[0].permissions.fullDiskAccess.authorization).toBe('Allow');
+  });
+
+  it('treats a boolean Allowed:false field as equivalent to Authorization: Deny', () => {
+    const xml = profileXml(
+      serviceArray('Accessibility', [
+        entryDict({
+          Identifier: 'com.example.app',
+          IdentifierType: 'bundleID',
+          Allowed: { bool: false },
+        }),
+      ]),
+    );
+
+    const result = importMobileconfig(xml, [], 1);
+    expect(result.apps[0].permissions.accessibility.enabled).toBe(true);
+    expect(result.apps[0].permissions.accessibility.authorization).toBe('Deny');
+  });
+
+  it('treats an integer Allowed field (1/0) as equivalent to Allow/Deny', () => {
+    // Microsoft Defender for Endpoint's exported profiles use <integer>1</integer>
+    // rather than <true/> for the same Allowed field.
+    const xml = profileXml(
+      serviceArray('Accessibility', [
+        entryDict({
+          Identifier: 'com.example.app',
+          IdentifierType: 'bundleID',
+          Allowed: { int: 1 },
+        }),
+      ]),
+    );
+
+    const result = importMobileconfig(xml, [], 1);
+    expect(result.apps[0].permissions.accessibility.enabled).toBe(true);
+    expect(result.apps[0].permissions.accessibility.authorization).toBe('Allow');
+  });
+
+  it('prefers Authorization over Allowed when both are present', () => {
+    const xml = profileXml(
+      serviceArray('Accessibility', [
+        entryDict({
+          Identifier: 'com.example.app',
+          IdentifierType: 'bundleID',
+          Authorization: 'AllowStandardUserToSetSystemService',
+          Allowed: { bool: true },
+        }),
+      ]),
+    );
+
+    const result = importMobileconfig(xml, [], 1);
+    expect(result.apps[0].permissions.accessibility.authorization).toBe(
+      'AllowStandardUserToSetSystemService',
     );
   });
 

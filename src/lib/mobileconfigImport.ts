@@ -41,6 +41,27 @@ function asArray(v: PlistValue | undefined): PlistValue[] | undefined {
   return Array.isArray(v) ? v : undefined;
 }
 
+/**
+ * Resolve an entry's effective Authorization. Apple's PPPC schema allows a
+ * simpler boolean `Allowed` field (also seen as an integer 1/0 in some
+ * vendors' exports, e.g. Microsoft Defender for Endpoint) as an alternative
+ * to the `Authorization` string enum for certain services — Accessibility,
+ * BluetoothAlways, SystemPolicyAllFiles, SystemPolicySysAdminFiles, and a
+ * few others. Real-world profiles from Microsoft, SentinelOne, Huntress, and
+ * JAMF-authored exports all use this form. `Authorization` takes priority
+ * when both are present.
+ */
+function resolveAuthorization(entry: PlistDict): Authorization | undefined {
+  const authRaw = asString(entry.Authorization);
+  if (authRaw && VALID_AUTHORIZATIONS.includes(authRaw as Authorization)) {
+    return authRaw as Authorization;
+  }
+  const allowed = entry.Allowed;
+  if (typeof allowed === 'boolean') return allowed ? 'Allow' : 'Deny';
+  if (typeof allowed === 'number') return allowed !== 0 ? 'Allow' : 'Deny';
+  return undefined;
+}
+
 interface AppOverlay {
   codeRequirement: string | null;
   standard: Partial<Record<string, { enabled: true; authorization: Authorization }>>;
@@ -169,8 +190,9 @@ export function importMobileconfig(
         continue;
       }
 
-      const authRaw = asString(entry.Authorization);
-      if (!authRaw || !VALID_AUTHORIZATIONS.includes(authRaw as Authorization)) {
+      const resolvedAuth = resolveAuthorization(entry);
+      if (!resolvedAuth) {
+        const authRaw = asString(entry.Authorization);
         warnings.push(
           `Unrecognized authorization "${authRaw ?? ''}" for ${tccService} (bundle ${bundleId}) skipped.`,
         );
@@ -179,7 +201,7 @@ export function importMobileconfig(
 
       overlayFor(bundleId).standard[perm.id] = {
         enabled: true,
-        authorization: authRaw as Authorization,
+        authorization: resolvedAuth,
       };
     }
   }
@@ -199,7 +221,8 @@ export function importMobileconfig(
   }
 
   if (overlays.size === 0) {
-    throw new Error('This profile has no importable PPPC entries.');
+    const reasons = warnings.length > 0 ? ` Reasons:\n${warnings.join('\n')}` : '';
+    throw new Error(`This profile has no importable PPPC entries.${reasons}`);
   }
 
   const bundleIds = Array.from(overlays.keys());
