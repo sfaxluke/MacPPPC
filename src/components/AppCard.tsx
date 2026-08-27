@@ -58,6 +58,11 @@ export function AppCard({
                   Known
                 </span>
               )}
+              {item.app.identifierType === 'path' && (
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-warning/10 text-warning font-medium">
+                  Path
+                </span>
+              )}
             </div>
             <div className="text-xs text-muted-foreground truncate font-mono">
               {item.app.bundleId}
