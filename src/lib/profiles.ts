@@ -59,7 +59,7 @@ export function generateProfiles(
     const built = buildContent(apps, shared, format, innerUUID);
     if (!built) return [];
     const appSegment = apps
-      .map((a) => a.app.bundleId.split('.').pop())
+      .map((a) => a.app.bundleId.split(/[./]/).pop())
       .filter(Boolean)
       .join('-');
     const baseName = shared.payloadName || `PPPC-${appSegment || 'profile'}`;
