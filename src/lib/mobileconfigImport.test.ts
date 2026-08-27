@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { importMobileconfig } from './mobileconfigImport';
+import { generateMobileconfig } from './mobileconfig';
+import { buildSettingsCatalogPolicy } from './settingsCatalog';
 import { defaultCodeRequirement } from './codeRequirement';
 import type { KnownApp } from './types';
 
@@ -227,6 +229,21 @@ describe('importMobileconfig', () => {
     expect(app.app.identifierType).toBe('path');
     expect(app.permissions.fullDiskAccess.enabled).toBe(true);
     expect(app.permissions.fullDiskAccess.authorization).toBe('Allow');
+  });
+
+  it('derives displayName from the last path segment for a path-identified app', () => {
+    const xml = profileXml(
+      serviceArray('SystemPolicyAllFiles', [
+        entryDict({
+          Identifier: '/Applications/NinjaRMMAgent/programfiles/ninjarmm-macagent',
+          IdentifierType: 'path',
+          Allowed: { bool: true },
+        }),
+      ]),
+    );
+
+    const result = importMobileconfig(xml, [], 1);
+    expect(result.apps[0].app.displayName).toBe('ninjarmm-macagent');
   });
 
   it('defaults identifierType to bundleID for a normal entry', () => {
@@ -563,5 +580,31 @@ describe('importMobileconfig — AppleEvents', () => {
     const result = importMobileconfig(xml, [], 1);
     expect(result.apps[0].permissions.automation.receivers).toEqual([]);
     expect(result.warnings.some((w) => w.includes('Maybe'))).toBe(true);
+  });
+});
+
+describe('importMobileconfig — round-trip', () => {
+  it('preserves a path-identified app through import and both export formats', () => {
+    const xml = profileXml(
+      serviceArray('SystemPolicyAllFiles', [
+        entryDict({
+          Identifier: '/Applications/NinjaRMMAgent/programfiles/ninjarmm-macagent',
+          IdentifierType: 'path',
+          Allowed: { bool: true },
+          CodeRequirement: 'identifier "ninjarmm-macagent" and anchor apple generic',
+        }),
+      ]),
+    );
+
+    const result = importMobileconfig(xml, [], 1);
+
+    const mobileconfigXml = generateMobileconfig(result.apps, result.settings);
+    expect(mobileconfigXml).toMatch(
+      /<key>Identifier<\/key>\s*<string>\/Applications\/NinjaRMMAgent\/programfiles\/ninjarmm-macagent<\/string>\s*<key>IdentifierType<\/key>\s*<string>path<\/string>/,
+    );
+
+    const policy = buildSettingsCatalogPolicy(result.apps, result.settings);
+    const json = JSON.stringify(policy);
+    expect(json).toContain('_identifiertype_1');
   });
 });

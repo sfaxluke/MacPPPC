@@ -244,10 +244,15 @@ export function importMobileconfig(
   const apps: SelectedApp[] = bundleIds.map((bundleId, index) => {
     const overlay = overlays.get(bundleId)!;
     const known = knownApps.find((a) => a.bundleId === bundleId);
+    const displayName =
+      known?.displayName ??
+      (overlay.identifierType === 'path'
+        ? bundleId.split('/').filter(Boolean).pop() || bundleId
+        : bundleId);
     const appInfo: AppInfo = {
       bundleId,
       identifierType: overlay.identifierType,
-      displayName: known?.displayName ?? bundleId,
+      displayName,
       codeRequirement: overlay.codeRequirement,
     };
     const entry = makeAppEntry(appInfo, nextIdStart + index, index === 0, !!known);
