@@ -143,6 +143,29 @@ to:
     );
 ```
 
+**Correction (found during execution):** `mobileconfigImport.ts` also constructs an `AppInfo` object literal, and TypeScript strict mode checks the whole project on every build — not incrementally per task — so making `identifierType` required breaks that file's build too, immediately, not just once Task 2 gets to it. Also edit `src/lib/mobileconfigImport.ts` — change:
+
+```ts
+    const appInfo: AppInfo = {
+      bundleId,
+      displayName: known?.displayName ?? bundleId,
+      codeRequirement: overlay.codeRequirement,
+    };
+```
+
+to:
+
+```ts
+    const appInfo: AppInfo = {
+      bundleId,
+      identifierType: 'bundleID',
+      displayName: known?.displayName ?? bundleId,
+      codeRequirement: overlay.codeRequirement,
+    };
+```
+
+This hardcoded `'bundleID'` is a correct placeholder for now (the importer doesn't distinguish types yet) — Task 2 replaces it with the real derived value.
+
 - [ ] **Step 5: Run it, verify it passes**
 
 Run: `npx vitest run src/lib/plist.test.ts`
@@ -151,12 +174,12 @@ Expected: PASS.
 - [ ] **Step 6: Full regression check**
 
 Run: `npm run build && npm test`
-Expected: both succeed. (`mobileconfigImport.ts` does not construct `AppInfo` yet in a way the compiler would catch here — Task 2 handles it — but this confirms nothing else broke.)
+Expected: both succeed.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/types.ts src/lib/plist.ts src/lib/plist.test.ts src/components/AppInput.tsx
+git add src/lib/types.ts src/lib/plist.ts src/lib/plist.test.ts src/components/AppInput.tsx src/lib/mobileconfigImport.ts
 git commit -m "feat: add identifierType to AppInfo"
 ```
 
@@ -380,11 +403,14 @@ becomes:
       applyCodeRequirement(bundleId, asString(entry.CodeRequirement));
 ```
 
-Update the `AppInfo` construction in the apps-building loop:
+Update the `AppInfo` construction in the apps-building loop (Task 1 already
+added a hardcoded `identifierType: 'bundleID'` placeholder here to keep the
+build green — replace it with the real value):
 
 ```ts
     const appInfo: AppInfo = {
       bundleId,
+      identifierType: 'bundleID',
       displayName: known?.displayName ?? bundleId,
       codeRequirement: overlay.codeRequirement,
     };
