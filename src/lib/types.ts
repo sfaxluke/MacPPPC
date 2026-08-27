@@ -44,6 +44,13 @@ export interface KnownApp {
 
 export interface AppInfo {
   bundleId: string;
+  /**
+   * How `bundleId` identifies the app. Defaults to 'bundleID' everywhere
+   * except mobileconfig import — 'path' identifies an app by absolute file
+   * path (used for binaries with no CFBundleIdentifier, e.g. a raw agent
+   * executable). There is no manual-entry path for 'path' apps today.
+   */
+  identifierType: 'bundleID' | 'path';
   displayName: string;
   codeRequirement: string | null;
 }

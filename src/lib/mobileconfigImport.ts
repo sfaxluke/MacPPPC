@@ -231,6 +231,7 @@ export function importMobileconfig(
     const known = knownApps.find((a) => a.bundleId === bundleId);
     const appInfo: AppInfo = {
       bundleId,
+      identifierType: 'bundleID',
       displayName: known?.displayName ?? bundleId,
       codeRequirement: overlay.codeRequirement,
     };

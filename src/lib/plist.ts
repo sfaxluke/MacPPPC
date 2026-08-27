@@ -82,6 +82,7 @@ export function parsePlist(content: string, knownApps: KnownApp[]): AppInfo {
     const knownApp = knownApps.find((a) => a.bundleId === bundleId);
     return {
       bundleId,
+      identifierType: 'bundleID',
       displayName,
       codeRequirement: knownApp ? knownApp.codeRequirement : null,
     };

@@ -45,6 +45,7 @@ describe('parsePlist', () => {
     const info = parsePlist(INFO_PLIST, []);
     expect(info.bundleId).toBe('com.example.app');
     expect(info.displayName).toBe('Example App');
+    expect(info.identifierType).toBe('bundleID');
   });
 });
 

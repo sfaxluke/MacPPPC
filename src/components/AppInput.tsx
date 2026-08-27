@@ -53,6 +53,7 @@ export function AppInput({
     onAppDetected(
       {
         bundleId: known.bundleId,
+        identifierType: 'bundleID',
         displayName: known.displayName,
         codeRequirement: known.codeRequirement,
       },
