@@ -64,6 +64,7 @@ function resolveAuthorization(entry: PlistDict): Authorization | undefined {
 
 interface AppOverlay {
   codeRequirement: string | null;
+  identifierType: 'bundleID' | 'path';
   standard: Partial<Record<string, { enabled: true; authorization: Authorization }>>;
   receivers: Partial<Record<string, AppleEventReceiver[]>>;
 }
@@ -91,7 +92,7 @@ function findPppcPayload(root: PlistDict): PlistDict {
 /**
  * Parse an existing PPPC .mobileconfig document into the app/permission
  * state this tool already knows how to render and export. Entries this
- * tool can't represent (unsupported services, path-based identifiers,
+ * tool can't represent (unsupported services, an invalid IdentifierType,
  * unrecognized authorization values) are skipped and reported as warnings
  * rather than failing the whole import.
  */
@@ -109,7 +110,7 @@ export function importMobileconfig(
   function overlayFor(bundleId: string): AppOverlay {
     let overlay = overlays.get(bundleId);
     if (!overlay) {
-      overlay = { codeRequirement: null, standard: {}, receivers: {} };
+      overlay = { codeRequirement: null, identifierType: 'bundleID', standard: {}, receivers: {} };
       overlays.set(bundleId, overlay);
     }
     return overlay;
@@ -143,13 +144,14 @@ export function importMobileconfig(
         warnings.push(`Entry for "${tccService}" has no Identifier — skipped.`);
         continue;
       }
-      if (identifierType !== 'bundleID') {
+      if (identifierType !== 'bundleID' && identifierType !== 'path') {
         warnings.push(
-          `"${bundleId}" uses a path identifier for "${tccService}", which this tool doesn't support — skipped.`,
+          `Entry for "${tccService}" has an invalid IdentifierType "${identifierType ?? ''}" — skipped.`,
         );
         continue;
       }
 
+      overlayFor(bundleId).identifierType = identifierType;
       applyCodeRequirement(bundleId, asString(entry.CodeRequirement));
 
       if (perm.tccService === 'AppleEvents') {
@@ -231,7 +233,7 @@ export function importMobileconfig(
     const known = knownApps.find((a) => a.bundleId === bundleId);
     const appInfo: AppInfo = {
       bundleId,
-      identifierType: 'bundleID',
+      identifierType: overlay.identifierType,
       displayName: known?.displayName ?? bundleId,
       codeRequirement: overlay.codeRequirement,
     };

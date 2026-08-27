@@ -176,13 +176,13 @@ describe('importMobileconfig', () => {
     expect(result.warnings.some((w) => w.includes('SomeFutureService'))).toBe(true);
   });
 
-  it('skips a path-identified entry and records a warning', () => {
+  it('skips an entry with an invalid IdentifierType and records a warning', () => {
     const xml = profileXml(
       [
         serviceArray('Camera', [
           entryDict({
-            Identifier: '/Applications/Foo.app',
-            IdentifierType: 'path',
+            Identifier: 'com.example.app',
+            IdentifierType: 'wat',
             Authorization: 'Deny',
           }),
         ]),
@@ -198,7 +198,50 @@ describe('importMobileconfig', () => {
 
     const result = importMobileconfig(xml, [], 1);
     expect(result.apps).toHaveLength(1);
-    expect(result.warnings.some((w) => w.includes('path identifier'))).toBe(true);
+    expect(
+      result.warnings.some((w) => w.includes('invalid IdentifierType')),
+    ).toBe(true);
+  });
+
+  it('accepts a path-identified sender app and carries identifierType through', () => {
+    // Real-world shape: an agent binary with no CFBundleIdentifier is
+    // identified by its on-disk path instead (e.g. NinjaOne's agent).
+    const xml = profileXml(
+      serviceArray('SystemPolicyAllFiles', [
+        entryDict({
+          Identifier: '/Applications/NinjaRMMAgent/programfiles/ninjarmm-macagent',
+          IdentifierType: 'path',
+          Allowed: { bool: true },
+          CodeRequirement: 'identifier "ninjarmm-macagent" and anchor apple generic',
+        }),
+      ]),
+    );
+
+    const result = importMobileconfig(xml, [], 1);
+    expect(result.warnings).toEqual([]);
+    expect(result.apps).toHaveLength(1);
+    const app = result.apps[0];
+    expect(app.app.bundleId).toBe(
+      '/Applications/NinjaRMMAgent/programfiles/ninjarmm-macagent',
+    );
+    expect(app.app.identifierType).toBe('path');
+    expect(app.permissions.fullDiskAccess.enabled).toBe(true);
+    expect(app.permissions.fullDiskAccess.authorization).toBe('Allow');
+  });
+
+  it('defaults identifierType to bundleID for a normal entry', () => {
+    const xml = profileXml(
+      serviceArray('Camera', [
+        entryDict({
+          Identifier: 'com.example.app',
+          IdentifierType: 'bundleID',
+          Authorization: 'Deny',
+        }),
+      ]),
+    );
+
+    const result = importMobileconfig(xml, [], 1);
+    expect(result.apps[0].app.identifierType).toBe('bundleID');
   });
 
   it('skips an entry with an unrecognized Authorization value and records a warning', () => {
@@ -247,13 +290,13 @@ describe('importMobileconfig', () => {
       serviceArray('SystemPolicyAllFiles', [
         entryDict({
           Identifier: '/Applications/Foo.app/Contents/MacOS/foo',
-          IdentifierType: 'path',
+          IdentifierType: 'wat',
           Allowed: { bool: true },
         }),
       ]),
     );
 
-    expect(() => importMobileconfig(xml, [], 1)).toThrow(/path identifier/);
+    expect(() => importMobileconfig(xml, [], 1)).toThrow(/invalid IdentifierType/);
   });
 
   it('throws when the only entry has a CodeRequirement but is otherwise unusable', () => {
